@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Backtest Recorder</title>
+<script>
+// Shows any page error on screen, so a failure never looks like a dead page.
+(function () {
+  function show(msg) { var b = document.getElementById('boot'); if (!b) return; b.className = 'banner err'; b.textContent = 'The page hit an error: ' + msg; }
+  window.addEventListener('error', function (e) { show((e.message || 'unknown error') + (e.lineno ? ' (line ' + e.lineno + ')' : '')); });
+  window.addEventListener('unhandledrejection', function (e) { show(String((e.reason && e.reason.message) || e.reason)); });
+})();
+</script>
+<style>
+  :root {
+    --bg: #f5f7fb; --card: #ffffff; --ink: #1b2333; --muted: #64708a; --line: #d9deea; --field: #ffffff;
+    --accent: #0f766e; --accent-ink: #ffffff; --navy: #1f2a44;
+    --orange: #d97706; --orange-bg: #fff4e0; --red: #b42318; --red-bg: #fdecea; --ok: #15803d; --ok-bg: #e8f6ee;
+    --shadow: 0 1px 2px rgba(20,30,60,.06), 0 6px 18px rgba(20,30,60,.05);
+  }
+  [data-theme="dark"] {
+    --bg: #0f131b; --card: #171c27; --ink: #e8ecf5; --muted: #9aa6bf; --line: #2a3245; --field: #10151f;
+    --accent: #2dd4bf; --accent-ink: #06211e; --navy: #0b0f17;
+    --orange: #fbbf24; --orange-bg: #3a2a08; --red: #ff8a80; --red-bg: #3b1715; --ok: #4ade80; --ok-bg: #11291c;
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--navy); color: #fff; position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: .2px; }
+  .seg { display: inline-flex; background: rgba(255,255,255,.12); border-radius: 10px; padding: 3px; gap: 2px; margin-left: auto; }
+  .seg button { border: 0; background: transparent; color: #dfe6f5; padding: 7px 14px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+  .seg button.active { background: #fff; color: #1f2a44; }
+  .icon-btn { border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; border-radius: 8px; padding: 6px 10px; cursor: pointer; font: inherit; }
+  main { max-width: 940px; margin: 0 auto; padding: 18px 16px 90px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .card h2 { margin: 0 0 10px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  label.lbl { font-size: 12px; font-weight: 650; color: var(--muted); display: block; margin-bottom: 4px; }
+  select, input[type=text], input[type=number], input[type=password], textarea {
+    width: 100%; background: var(--field); color: var(--ink); border: 1.5px solid var(--line); border-radius: 9px; padding: 9px 10px; font: inherit; min-height: 38px;
+  }
+  textarea { resize: vertical; min-height: 74px; }
+  select:focus, input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .info { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .chip { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; color: var(--muted); }
+  .chip b { color: var(--ink); }
+  button.primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 10px; padding: 11px 18px; font: inherit; font-weight: 700; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  #dictBtn, #ideaDictBtn { display: inline-flex; align-items: center; gap: 8px; background: #c62828; color: #fff; border: 0; border-radius: 999px; padding: 12px 20px; font: inherit; font-weight: 700; cursor: pointer; }
+  #dictBtn.on, #ideaDictBtn.on { background: #111; animation: pulse 1.2s infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(198,40,40,.25); } }
+  .status { color: var(--muted); font-size: 13px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+  .field .note { font-size: 12px; color: var(--orange); min-height: 0; margin-top: 3px; }
+  .field.orange input, .field.orange select { border-color: var(--orange); background: var(--orange-bg); }
+  .field.auto input { background: transparent; border-style: dashed; color: var(--accent); font-weight: 700; }
+  .field.hidden { display: none; }
+  .group-title { grid-column: 1 / -1; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; margin-top: 6px; }
+  .banner { border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; border: 1px solid var(--line); background: var(--card); }
+  .banner.warn { background: var(--orange-bg); border-color: var(--orange); }
+  .banner.err { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+  .banner.ok { background: var(--ok-bg); border-color: var(--ok); }
+  .banner ul { margin: 6px 0 0 18px; padding: 0; }
+  .hidden { display: none !important; }
+  .pill { border: 1px solid rgba(255,255,255,.3); background: transparent; color: #fff; border-radius: 999px; padding: 5px 12px; cursor: pointer; font: inherit; font-size: 12px; }
+  .disconnected #tradePanel, .disconnected #ideaPanel, .disconnected #saveBar, .disconnected #modeSeg { display: none !important; }
+  #connectCard input[type=password], #connectCard input[type=text] { margin-bottom: 10px; }
+  .shot { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .shot img { height: 64px; border-radius: 8px; border: 1px solid var(--line); }
+  .savebar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--card); border-top: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; z-index: 6; }
+  .savebar .inner { width: 100%; max-width: 940px; display: flex; gap: 12px; align-items: center; }
+  .grow { flex: 1; }
+  .help { font-size: 13px; }
+  .help b { font-weight: 700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Backtest Recorder <span style="font-weight:400;opacity:.65;font-size:12px;margin-left:6px">v4</span></h1>
+  <div class="seg" id="modeSeg" role="tablist">
+    <button data-mode="backtest" class="active" type="button">Backtest</button>
+    <button data-mode="live" type="button">Live Trade</button>
+    <button data-mode="idea" type="button">Idea</button>
+  </div>
+  <button class="pill hidden" id="connPill" type="button" title="Connection to your Google Sheet">○ Not connected</button>
+  <button class="icon-btn" id="themeBtn" type="button" title="Switch light / dark">◐</button>
+</header>
+
+<main>
+  <div id="boot" class="banner warn">Starting… If this message does not go away, the page could not start. Please send a screenshot of it.</div>
+  <section id="connectCard" class="card hidden">
+    <h2>Connect to your Google Sheet</h2>
+    <div class="info" style="margin:-4px 0 12px">Paste the two things shown in your Sheet under <b>Recorder → Standalone page: show link and access code</b>. You only do this once on this computer. Both stay on this computer.</div>
+    <label class="lbl" for="connUrl">Web app link (ends in /exec)</label>
+    <input type="text" id="connUrl" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+    <label class="lbl" for="connToken">Access code</label>
+    <input type="password" id="connToken" autocomplete="off">
+    <div class="row">
+      <button class="primary" id="connBtn" type="button">Connect</button>
+      <button class="ghost hidden" id="connCancel" type="button">Cancel</button>
+      <span class="status" id="connMsg"></span>
+    </div>
+  </section>
+  <div id="banner"></div>
+
+  <!-- ============================ Backtest + Live ============================ -->
+  <section id="tradePanel">
+    <div id="resultCard" class="banner ok hidden"></div>
+    <div class="card">
+      <h2 id="tabHeading">Test tab</h2>
+      <label class="lbl" for="tabSel" id="tabLabel">Which test are you recording?</label>
+      <div class="row">
+        <div style="flex:1;min-width:240px"><select id="tabSel"></select></div>
+        <button class="ghost" id="refreshBtn" type="button">Refresh</button>
+      </div>
+      <div class="info" id="sessionInfo"></div>
+      <div class="chips" id="aiLegend"></div>
+    </div>
+
+    <div class="card">
+      <h2>Say the trade</h2>
+      <div class="row">
+        <button id="dictBtn" type="button"><span>🎙</span><span class="lbl">Dictate trade</span></button>
+        <span class="status" id="micStatus">Press the button, say the whole trade, then pause.</span>
+      </div>
+      <div class="banner warn help hidden" id="micHelp" style="margin-top:12px"></div>
+      <div style="margin-top:12px">
+        <label class="lbl" for="transcript">What was heard (you can edit this, or just type the trade)</label>
+        <textarea id="transcript" placeholder="Example of what to say: Date fifteen July twenty twenty-six, time fourteen thirty-five, long trade, entry one zero nine two five, stop loss one zero nine one five, target one zero nine four five"></textarea>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="readBtn" type="button">Read it</button>
+        <button class="ghost" id="clearBtn" type="button">Clear</button>
+        <span class="status" id="readStatus"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Check every box</h2>
+      <div class="info" style="margin:-4px 0 10px">Orange boxes were not heard, or could not be read safely. Nothing is ever guessed: fill them in yourself.</div>
+      <div class="grid" id="fields"></div>
+      <div id="warnings" class="banner warn hidden" style="margin-top:12px"></div>
+    </div>
+
+    <div class="card">
+      <h2>Screenshot</h2>
+      <div class="shot">
+        <input type="file" id="shotInput" accept="image/*">
+        <img id="shotPreview" class="hidden" alt="Screenshot preview">
+        <button class="ghost hidden" id="shotRemove" type="button">Remove</button>
+        <span class="info" id="shotHint">You can also paste a screenshot with Cmd+V.</span>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============================ Idea ============================ -->
+  <section id="ideaPanel" class="hidden">
+    <div class="card">
+      <h2>Log an idea</h2>
+      <div class="info" style="margin:-4px 0 10px">Something you noticed on the chart. It goes to the Idea_Backlog tab to test later and does not touch your trade data.</div>
+      <div class="row">
+        <button id="ideaDictBtn" type="button"><span>🎙</span><span class="lbl">Dictate idea</span></button>
+        <span class="status" id="ideaMic">Or just type it below.</span>
+      </div>
+      <div class="banner warn help hidden" id="ideaMicHelp" style="margin-top:12px"></div>
+      <div style="margin-top:12px">
+        <label class="lbl" for="ideaText">The idea</label>
+        <textarea id="ideaText" placeholder="Example: Price kept bouncing off the daily pivot, even outside my setup."></textarea>
+      </div>
+      <div class="grid" style="margin-top:12px">
+        <div class="field"><label class="lbl" for="ideaTab">Related test (optional)</label><select id="ideaTab"></select></div>
+        <div class="field"><label class="lbl" for="ideaLinked">Trade number (optional)</label><input type="number" id="ideaLinked" min="1" max="100"></div>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <button class="primary" id="ideaSave" type="button">Save idea</button>
+        <span class="status" id="ideaMsg"></span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="savebar" id="saveBar">
+  <div class="inner">
+    <button class="primary" id="saveBtn" type="button">Save trade</button>
+    <div class="grow status" id="msg"></div>
+    <div id="confirmBar" class="hidden row" style="gap:8px">
+      <button class="ghost" id="goBackBtn" type="button">Go back</button>
+      <button class="primary" id="saveAnywayBtn" type="button">Save anyway</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  // Google's secure pages block innerHTML ("TrustedHTML"), so every element is built directly with these helpers.
+  function append(parent, kids) {
+    (function add(list) { list.forEach(c => { if (Array.isArray(c)) add(c); else if (c != null && c !== false) parent.appendChild(typeof c === 'object' ? c : document.createTextNode(String(c))); }); })([].concat(kids));
+    return parent;
+  }
+  function node(tag, props, ...kids) {
+    const e = document.createElement(tag);
+    if (props) Object.keys(props).forEach(k => {
+      const v = props[k];
+      if (k === 'class') e.className = v;
+      else if (typeof v === 'function') e.addEventListener(k.replace(/^on/, ''), v);
+      else if (v === true) e.setAttribute(k, '');
+      else if (v !== false && v != null) e.setAttribute(k, v);
+    });
+    return append(e, kids);
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); return n; }
+  function fill(n, ...kids) { clear(n); return append(n, kids); }
+  const bold = t => node('b', null, t);
+  const uuid = () => (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  // ---------------------------------------------------------------- how the page talks to your script
+  // Inside the Sheet window it uses Google's built-in connection. As a standalone page it sends a web request
+  // to your script's web app link, with the secret access code.
+  const IN_GOOGLE = !!(window.google && google.script && google.script.run);
+  const conn = { url: '', token: '', ok: false };
+  try { conn.url = localStorage.getItem('rc-url') || ''; conn.token = localStorage.getItem('rc-token') || ''; } catch (e) { /* storage not available */ }
+  function saveConn() { try { localStorage.setItem('rc-url', conn.url); localStorage.setItem('rc-token', conn.token); } catch (e) { /* kept for this visit only */ } }
+  function webError(message, code) { const e = new Error(message); e.code = code; return e; }
+
+  async function callWeb(fn, args) {
+    if (!conn.url || !conn.token) throw webError('Connect to your Google Sheet first.', 'not_connected');
+    const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 90000);
+    let res, text;
+    try {
+      res = await fetch(conn.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ token: conn.token, fn: fn, args: args }), redirect: 'follow', signal: ctl.signal });
+      text = await res.text();
+    } catch (e) {
+      throw webError(e && e.name === 'AbortError' ? 'Google took too long to answer. Try again.' : 'Could not reach your Google script. Check your internet connection. If that is fine, in your script open Deploy → Manage deployments, check that "Who has access" is "Anyone", that the version is the latest (pencil → New version → Deploy), and that the link ends in /exec.', 'network');
+    } finally { clearTimeout(timer); }
+    let data;
+    try { data = JSON.parse(text); } catch (e) {
+      throw webError(/^\s*</.test(text) ? 'Google did not accept the request. In your script open Deploy → Manage deployments and check that "Who has access" is set to "Anyone", and that you pasted the link ending in /exec.' : 'The script gave an answer this page could not read.', 'unreadable');
+    }
+    if (data && data.transport === 'ok') return data.result;
+    throw webError((data && data.error) || 'The script refused the request.', (data && data.code) || 'refused');
+  }
+
+  const run = (fn, ...args) => IN_GOOGLE
+    ? new Promise((resolve, reject) => { google.script.run.withSuccessHandler(resolve).withFailureHandler(e => reject(new Error((e && e.message) || String(e))))[fn](...args); })
+    : callWeb(fn, args);
+
+  // ---------------------------------------------------------------- settings you may tune
+  const SILENCE_MS = 4000;        // how long a pause ends the dictation
+  const SPEECH_LANG = 'en-AU';
+  const SHOT_MAX_WIDTH = 1800, SHOT_QUALITY = 0.85;
+
+  const FIELD_DEFS = {
+    date:      { label: 'Date',        ph: 'e.g. 14 Oct 2026' },
+    time:      { label: 'Time',        ph: 'e.g. 03:20' },
+    direction: { label: 'Direction',   select: ['', 'Long', 'Short'] },
+    entry:     { label: 'Entry',       ph: '' },
+    sl:        { label: 'SL',          ph: '' },
+    t1:        { label: 'T1 (1:1)',    auto: true },
+    target:    { label: 'Target',      ph: '' },
+    rr:        { label: 'Risk : reward', auto: true },
+    nextSr:    { label: 'Next SR',     ph: '' },
+    maxDd:     { label: 'Max DD',      ph: '' },
+    maxRet:    { label: 'Max Ret',     ph: '' },
+    maxExit:   { label: 'Max Exit',    ph: '' },
+    moveSl:    { label: 'Move SL',     ph: '' }
+  };
+  const LAYOUT = {
+    backtest: [['date', 'time', 'direction', 'entry', 'sl', 't1', 'target', 'nextSr'], ['maxDd', 'maxRet', 'maxExit', 'moveSl']],
+    live:     [['date', 'time', 'direction', 'entry', 'sl', 'target', 'rr', 'nextSr']]
+  };
+
+  const state = {
+    mode: 'backtest', tabs: [], tab: '', session: null, submissionId: uuid(), transcript: '', shot: null,
+    review: null, valSeq: 0, valTimer: null, busy: false, lastSaved: null, ideaRaw: '', ideaSubmission: uuid()
+  };
+
+  // ---------------------------------------------------------------- theme
+  function applyTheme(t) { document.documentElement.setAttribute('data-theme', t); try { localStorage.setItem('rc-theme', t); } catch (e) {} }
+  (function initTheme() {
+    let t = null; try { t = localStorage.getItem('rc-theme'); } catch (e) {}
+    if (!t) t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    applyTheme(t);
+    $('#themeBtn').addEventListener('click', () => applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+  })();
+
+  // ---------------------------------------------------------------- small UI helpers
+  function setMsg(text, kind) { const m = $('#msg'); m.textContent = text || ''; m.style.color = kind === 'err' ? 'var(--red)' : kind === 'ok' ? 'var(--ok)' : ''; }
+  function banner(kids, kind) { const b = clear($('#banner')); if (kids && kids.length) b.appendChild(node('div', { class: 'banner ' + (kind || '') }, kids)); }
+  function setBusy(on, text) { state.busy = on; $('#saveBtn').disabled = on; $('#readBtn').disabled = on; if (text !== undefined) $('#readStatus').textContent = text || ''; }
+
+  // ---------------------------------------------------------------- building the form
+  function buildForm() {
+    const box = clear($('#fields'));
+    const groups = LAYOUT[state.mode] || LAYOUT.backtest;
+    groups.forEach((keys, gi) => {
+      if (gi === 1) box.appendChild(node('div', { class: 'group-title' }, 'Outcome'));
+      keys.forEach(k => {
+        const d = FIELD_DEFS[k];
+        const control = d.select
+          ? node('select', { id: 'f-' + k }, d.select.map(o => node('option', { value: o }, o || '—')))
+          : node('input', { type: 'text', id: 'f-' + k, placeholder: d.ph || '', autocomplete: 'off', readonly: !!d.auto, tabindex: d.auto ? '-1' : false });
+        box.appendChild(node('div', { class: 'field' + (d.auto ? ' auto' : ''), id: 'w-' + k },
+          node('label', { class: 'lbl', for: 'f-' + k }, d.label), control, node('div', { class: 'note', id: 'n-' + k })));
+        if (!d.auto) { control.addEventListener('input', validateSoon); control.addEventListener('change', validateSoon); control.addEventListener('blur', validateSoon); }
+      });
+    });
+    // AI conditions (one box per condition this test defines)
+    box.appendChild(node('div', { class: 'group-title', id: 'aiTitle' }, 'AI conditions'));
+    for (let i = 0; i < 6; i++) {
+      const sel = node('select', { id: 'ai-' + i }, node('option', { value: '' }, '—'), node('option', { value: 'Met' }, 'Met'), node('option', { value: 'Not met' }, 'Not met'));
+      box.appendChild(node('div', { class: 'field hidden', id: 'w-ai' + i },
+        node('label', { class: 'lbl', for: 'ai-' + i, id: 'l-ai' + i }, 'AI ' + (i + 1)), sel, node('div', { class: 'note', id: 'n-ai' + i })));
+      sel.addEventListener('change', validateSoon);
+    }
+    renderAiFields();
+  }
+
+  function renderAiFields() {
+    const s = state.session; let any = false;
+    for (let i = 0; i < 6; i++) {
+      const defn = s && s.ai && s.ai[i] && s.ai[i].defined, w = $('#w-ai' + i);
+      if (!w) continue;
+      w.classList.toggle('hidden', !defn);
+      if (defn) { any = true; const a = s.ai[i]; $('#l-ai' + i).textContent = 'AI' + a.n + (a.abbr ? ' · ' + a.abbr : ''); w.title = a.desc || ''; }
+    }
+    const tt = $('#aiTitle'); if (tt) tt.classList.toggle('hidden', !any);
+  }
+
+  function getForm() {
+    const f = { ai: [] };
+    (LAYOUT[state.mode] || []).forEach(keys => keys.forEach(k => { if (!FIELD_DEFS[k].auto) f[k] = ($('#f-' + k).value || '').trim(); }));
+    for (let i = 0; i < 6; i++) { const sel = $('#ai-' + i); f.ai.push(sel ? sel.value : ''); }
+    return f;
+  }
+
+  function mark(wrapper, r) {
+    if (!wrapper) return;
+    wrapper.classList.toggle('orange', !!(r && r.orange));
+    const note = wrapper.querySelector('.note');
+    if (note) {
+      let text = '';
+      if (r && r.orange) {
+        if (r.note) text = r.note;
+        else if (r.status === 'missing') text = 'Not heard: fill in';
+        if (r.candidates && r.candidates.length) text += ' (could be ' + r.candidates.join(' or ') + ')';
+      }
+      note.textContent = text;
+    }
+  }
+
+  function applyReview(review, setValues) {
+    state.review = review;
+    (LAYOUT[state.mode] || []).forEach(keys => keys.forEach(k => {
+      if (FIELD_DEFS[k].auto) return;
+      const r = review.fields && review.fields[k], el = $('#f-' + k);
+      if (!r || !el) return;
+      if (setValues) el.value = r.text || '';
+      else if (r.status === 'ok' && document.activeElement !== el && r.text) el.value = r.text;   // tidy what you typed, e.g. 10925 -> 1.09250
+      mark($('#w-' + k), r);
+    }));
+    (review.ai || []).forEach((a, i) => {
+      const sel = $('#ai-' + i); if (!sel) return;
+      if (a.defined) { if (setValues) sel.value = a.text || ''; mark($('#w-ai' + i), a); }
+    });
+    const t1 = $('#f-t1'); if (t1) t1.value = review.t1 || '';
+    const rr = $('#f-rr'); if (rr) rr.value = review.rr || '';
+    const wBox = $('#warnings');
+    if (review.warnings && review.warnings.length) { fill(wBox, bold('Please look at this'), node('ul', null, review.warnings.map(w => node('li', null, w)))); wBox.classList.remove('hidden'); }
+    else { clear(wBox); wBox.classList.add('hidden'); }
+  }
+
+  function validateSoon() {
+    clearTimeout(state.valTimer);
+    state.valTimer = setTimeout(async () => {
+      if (!state.tab || state.busy) return;
+      const seq = ++state.valSeq;
+      try {
+        const res = await run('validateTrade', state.mode, state.tab, getForm());
+        if (seq !== state.valSeq) return;           // an older answer: ignore it
+        if (res.ok) applyReview(res.review, false);
+      } catch (e) { /* a failed check must never block typing */ }
+    }, 350);
+  }
+
+  // Empties the boxes of the previous reading (but keeps your text and screenshot), so old values can never be saved with a new dictation.
+  function clearReading() {
+    (LAYOUT[state.mode] || []).forEach(keys => keys.forEach(k => { const el = $('#f-' + k); if (el) el.value = ''; const w = $('#w-' + k); if (w) { w.classList.remove('orange'); const n = w.querySelector('.note'); if (n) n.textContent = ''; } }));
+    for (let i = 0; i < 6; i++) { const s = $('#ai-' + i); if (s) s.value = ''; const w = $('#w-ai' + i); if (w) { w.classList.remove('orange'); const n = w.querySelector('.note'); if (n) n.textContent = ''; } }
+    const wb = $('#warnings'); clear(wb); wb.classList.add('hidden');
+    state.review = null; hideConfirm(); $('#readStatus').textContent = '';
+  }
+
+  function clearForm() {
+    (LAYOUT[state.mode] || []).forEach(keys => keys.forEach(k => { const el = $('#f-' + k); if (el) el.value = ''; const w = $('#w-' + k); if (w) { w.classList.remove('orange'); const n = w.querySelector('.note'); if (n) n.textContent = ''; } }));
+    for (let i = 0; i < 6; i++) { const s = $('#ai-' + i); if (s) s.value = ''; const w = $('#w-ai' + i); if (w) { w.classList.remove('orange'); const n = w.querySelector('.note'); if (n) n.textContent = ''; } }
+    $('#warnings').classList.add('hidden'); $('#transcript').value = ''; state.transcript = ''; state.review = null;
+    removeShot(); hideConfirm(); $('#readStatus').textContent = '';
+  }
+
+  // ---------------------------------------------------------------- tabs and session
+  function fillTabSelects() {
+    const sel = clear($('#tabSel')), keep = state.tab;
+    if (state.tabs.length) state.tabs.forEach(t => sel.appendChild(node('option', { value: t.name }, t.name + (t.pair ? ' · ' + t.pair : '') + (t.full ? ' (full)' : ''))));
+    else sel.appendChild(node('option', { value: '' }, 'No backtest tab yet'));
+    if (keep && state.tabs.some(t => t.name === keep)) sel.value = keep; else state.tab = sel.value || '';
+    const idea = clear($('#ideaTab'));
+    idea.appendChild(node('option', { value: '' }, '— none —'));
+    state.tabs.forEach(t => idea.appendChild(node('option', { value: t.name }, t.name)));
+  }
+
+  async function loadSession() {
+    state.session = null; $('#sessionInfo').textContent = ''; clear($('#aiLegend')); renderAiFields();
+    if (!state.tab) { $('#sessionInfo').textContent = 'Duplicate the Template tab, rename it, pick the pair in cell B1, then press Refresh.'; return; }
+    try {
+      const res = await run('getSession', state.mode, state.tab);
+      if (!res.ok) { $('#sessionInfo').textContent = res.error; return; }
+      const s = state.session = res.session;
+      const bits = [];
+      if (!s.pairOk) bits.push('⚠ The pair "' + (s.pair || 'empty') + '" is not on the Settings tab. Pick it in cell B1 first.');
+      else if (state.mode === 'live') bits.push(s.pairKey + ' · ' + (s.strategyName || s.name) + ' · next live ID ' + s.nextLiveId);
+      else bits.push(s.pairKey + ' · ' + (s.strategyName || s.name) + ' · ' + (s.full ? 'this tab is full' : 'next is trade #' + s.nextTrade + ' of ' + s.capacity));
+      $('#sessionInfo').textContent = bits.join(' ');
+      fill($('#aiLegend'), (s.ai || []).filter(a => a.defined).map(a => node('span', { class: 'chip', title: a.desc || '' }, bold('AI' + a.n), ' ' + (a.abbr || a.desc))));
+      renderAiFields();
+    } catch (e) { $('#sessionInfo').textContent = e.message; }
+  }
+
+  function bootDone() { const b = $('#boot'); if (b && !b.classList.contains('err')) b.classList.add('hidden'); }
+
+  // ---------------------------------------------------------------- connecting (standalone page only)
+  function setConnected(ok) {
+    conn.ok = ok;
+    if (IN_GOOGLE) return;
+    document.body.classList.toggle('disconnected', !ok);
+    const pill = $('#connPill'); pill.classList.remove('hidden'); pill.textContent = ok ? '● Connected' : '○ Not connected';
+  }
+  function openConnect(message) {
+    if (IN_GOOGLE) return;
+    $('#connUrl').value = conn.url; $('#connToken').value = conn.token; $('#connMsg').textContent = message || '';
+    $('#connectCard').classList.remove('hidden'); $('#connCancel').classList.toggle('hidden', !conn.ok);
+  }
+  function closeConnect() { $('#connectCard').classList.add('hidden'); }
+
+  async function startUp(res) {
+    state.tabs = res.tabs; fillTabSelects(); banner(null);
+    if (!res.hasKey) banner([bold('No Gemini key yet.'), ' You can still type every value in. To switch on voice reading, add ', node('code', null, 'GEMINI_API_KEY'), ' under Project Settings → Script Properties.'], 'warn');
+    await loadSession();
+  }
+
+  async function init() {
+    buildForm();
+    if (!IN_GOOGLE && (!conn.url || !conn.token)) { setConnected(false); openConnect(); bootDone(); return; }
+    let res;
+    try { res = await run('getInitData'); }
+    catch (e) { bootDone(); if (IN_GOOGLE) banner(e.message, 'err'); else { setConnected(false); openConnect(e.message); } return; }
+    if (!res.ok) { bootDone(); banner(res.error, 'err'); return; }
+    if (!IN_GOOGLE) setConnected(true);
+    await startUp(res);
+    bootDone();
+  }
+
+  async function doConnect() {
+    const url = $('#connUrl').value.trim(), token = $('#connToken').value.trim(), msg = $('#connMsg');
+    if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(url)) { msg.textContent = 'The link should start with https://script.google.com/ and end with /exec.'; return; }
+    if (!token) { msg.textContent = 'Paste the access code too.'; return; }
+    const before = { url: conn.url, token: conn.token };
+    conn.url = url; conn.token = token; $('#connBtn').disabled = true; msg.textContent = 'Connecting…';
+    try {
+      const res = await callWeb('getInitData', []);
+      if (!res || res.ok === false) throw webError((res && res.error) || 'The script answered, but reported a problem.', 'refused');
+      saveConn(); setConnected(true); closeConnect(); await startUp(res);
+    } catch (e) { conn.url = before.url; conn.token = before.token; msg.textContent = e.message; }
+    finally { $('#connBtn').disabled = false; }
+  }
+  $('#connBtn').addEventListener('click', doConnect);
+  $('#connToken').addEventListener('keydown', e => { if (e.key === 'Enter') doConnect(); });
+  $('#connCancel').addEventListener('click', closeConnect);
+  $('#connPill').addEventListener('click', () => { if ($('#connectCard').classList.contains('hidden')) openConnect(); else if (conn.ok) closeConnect(); });
+
+  // ---------------------------------------------------------------- dictation (Chrome speech recognition)
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function micHelpNodes(code, finishWith) {
+    const fallback = ['Click in the box below and use your computer\'s dictation: on a Mac press the ', bold('Fn / 🌐 key twice'), ' (or choose ', bold('Edit → Start Dictation'),
+      '); on Windows press ', bold('Windows key + H'), '. Speak, then press ', bold(finishWith), '.'];
+    switch (code) {
+      case 'not-allowed': case 'service-not-allowed':
+        return [bold('The microphone is blocked in this window.'), ' ', fallback, ' (If you see a camera or microphone icon in Chrome\'s address bar, allow the microphone there too.)'];
+      case 'audio-capture': return [bold('No microphone was found.'), ' Check it is connected and selected in your sound settings. Meanwhile: ', fallback];
+      case 'network': return [bold('Chrome could not reach its speech service'), ' (it needs the internet). Try again, or: ', fallback];
+      case 'no-speech': return [bold('Nothing was heard.'), ' Press the button and speak straight away, or: ', fallback];
+      case 'unsupported': return [bold('Voice dictation is not available in this browser.'), ' Use Chrome, or: ', fallback];
+      default: return [bold('Dictation stopped (' + code + ').'), ' ', fallback];
+    }
+  }
+
+  function makeDictation(o) {
+    let rec = null, listening = false, finalText = '', timer = null, errored = false;
+    function setUi(on) { o.button.classList.toggle('on', on); o.button.querySelector('.lbl').textContent = on ? 'Stop' : o.label; }
+    function stop() { clearTimeout(timer); if (rec) { try { rec.stop(); } catch (e) {} } }
+    function arm() { clearTimeout(timer); timer = setTimeout(stop, SILENCE_MS); }
+    function start() {
+      if (!SR) { o.onError('unsupported'); return; }
+      finalText = ''; errored = false; o.onStart && o.onStart();
+      rec = new SR(); rec.lang = SPEECH_LANG; rec.continuous = true; rec.interimResults = true;
+      rec.onstart = () => { listening = true; setUi(true); o.status('Listening… speak, then pause when you are done.'); arm(); };
+      rec.onresult = ev => {
+        let interim = '';
+        for (let i = ev.resultIndex; i < ev.results.length; i++) { const r = ev.results[i]; if (r.isFinal) finalText += r[0].transcript + ' '; else interim += r[0].transcript; }
+        o.textarea.value = (finalText + interim).trim(); arm();
+      };
+      rec.onerror = ev => { errored = true; o.onError(ev.error || 'unknown'); };
+      rec.onend = () => { listening = false; setUi(false); clearTimeout(timer); const t = o.textarea.value.trim(); if (!errored) { if (t) o.onFinal(t); else o.status('Nothing was heard. Try again.'); } };
+      try { rec.start(); } catch (e) { errored = true; o.onError('start-failed'); }
+    }
+    return { toggle() { listening ? stop() : start(); }, isListening: () => listening };
+  }
+
+  const tradeDict = makeDictation({
+    button: $('#dictBtn'), label: 'Dictate trade', textarea: $('#transcript'),
+    status: t => { $('#micStatus').textContent = t; },
+    onStart: () => { $('#micHelp').classList.add('hidden'); clearReading(); },
+    onError: code => { const box = fill($('#micHelp'), micHelpNodes(code, 'Read it')); box.classList.remove('hidden'); $('#micStatus').textContent = ''; $('#transcript').focus(); },
+    onFinal: t => { $('#micStatus').textContent = 'Got it. Reading…'; readTranscript(); }
+  });
+  const ideaDict = makeDictation({
+    button: $('#ideaDictBtn'), label: 'Dictate idea', textarea: $('#ideaText'),
+    status: t => { $('#ideaMic').textContent = t; },
+    onStart: () => { $('#ideaMicHelp').classList.add('hidden'); },
+    onError: code => { const box = fill($('#ideaMicHelp'), micHelpNodes(code, 'Save idea')); box.classList.remove('hidden'); $('#ideaMic').textContent = ''; $('#ideaText').focus(); },
+    onFinal: t => { state.ideaRaw = t; $('#ideaMic').textContent = 'Check the text, then save.'; }
+  });
+  $('#dictBtn').addEventListener('click', () => tradeDict.toggle());
+  $('#ideaDictBtn').addEventListener('click', () => ideaDict.toggle());
+
+  // ---------------------------------------------------------------- reading the transcript
+  async function readTranscript() {
+    const text = $('#transcript').value.trim();
+    if (!text) { setMsg('Dictate or type a trade first.', 'err'); return; }
+    if (!state.tab) { setMsg('Pick a test tab first.', 'err'); return; }
+    setBusy(true, 'Reading what you said…'); setMsg('');
+    try {
+      const res = await run('extractTrade', state.mode, state.tab, text);
+      if (!res.ok) { setMsg(res.error, 'err'); $('#readStatus').textContent = 'You can still fill the boxes in by hand.'; return; }
+      state.transcript = text;
+      applyReview(res.review, true);
+      $('#readStatus').textContent = 'Read by ' + res.model + '. Check every box: orange ones need you.';
+      $('#micStatus').textContent = 'Press the button to dictate the next trade.';
+    } catch (e) { setMsg(e.message, 'err'); }
+    finally { setBusy(false); }
+  }
+  $('#readBtn').addEventListener('click', readTranscript);
+  $('#transcript').addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') readTranscript(); });
+  $('#clearBtn').addEventListener('click', () => { clearForm(); setMsg(''); });
+
+  // ---------------------------------------------------------------- screenshots
+  function readAsDataUrl(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Could not read that file.')); r.readAsDataURL(file); }); }
+  async function toJpegDataUrl(file) {
+    try {
+      const bmp = await createImageBitmap(file), scale = Math.min(1, SHOT_MAX_WIDTH / bmp.width);
+      const c = document.createElement('canvas'); c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
+      const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(bmp, 0, 0, c.width, c.height);
+      return c.toDataURL('image/jpeg', SHOT_QUALITY);
+    } catch (e) { return readAsDataUrl(file); }
+  }
+  function setShot(file) {
+    if (!file || !/^image\//.test(file.type)) return;
+    state.shot = file;
+    readAsDataUrl(file).then(u => { $('#shotPreview').src = u; $('#shotPreview').classList.remove('hidden'); });
+    $('#shotRemove').classList.remove('hidden');
+  }
+  function removeShot() { state.shot = null; $('#shotInput').value = ''; $('#shotPreview').classList.add('hidden'); $('#shotPreview').removeAttribute('src'); $('#shotRemove').classList.add('hidden'); }
+  $('#shotInput').addEventListener('change', e => setShot(e.target.files && e.target.files[0]));
+  $('#shotRemove').addEventListener('click', removeShot);
+  document.addEventListener('paste', e => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    for (const it of items) { if (it.type && it.type.indexOf('image') === 0) { setShot(it.getAsFile()); break; } }
+  });
+
+  async function uploadShot(info, file) {
+    const dataUrl = await toJpegDataUrl(file);
+    return run('uploadScreenshot', { mode: info.mode, tab: info.tab, tradeNumber: info.tradeNumber, liveId: info.liveId, dataUrl: dataUrl });
+  }
+
+  // ---------------------------------------------------------------- saving
+  function hideConfirm() { $('#confirmBar').classList.add('hidden'); }
+  function shotLink(r) { return node('div', { class: 'info' }, 'Screenshot: ', node('a', { href: r.url, target: '_blank', rel: 'noopener' }, r.fileName)); }
+  function attachButton(info) { return node('button', { class: 'ghost', type: 'button', 'data-attach': true, onclick: () => attachLater(info) }, 'Attach screenshot'); }
+  function shotProblem(info, what) { return node('div', { class: 'info', style: 'color:var(--red)' }, what + ' ', attachButton(info)); }
+  function showResult(info, extra) {
+    const c = $('#resultCard'); c.className = 'banner ' + (info.status === 'Confirmed' ? 'ok' : 'warn');
+    const who = info.mode === 'live' ? info.liveId : 'Trade #' + info.tradeNumber + ' on ' + info.tab;
+    fill(c, bold('Saved: ' + who), ' (' + info.status + ')', info.flags && info.flags.length ? node('ul', null, info.flags.map(f => node('li', null, f))) : null, extra || null);
+  }
+  function attachLater(info) {
+    const inp = node('input', { type: 'file', accept: 'image/*' });
+    inp.onchange = async () => {
+      if (!inp.files[0]) return;
+      setMsg('Uploading the screenshot…');
+      try { const r = await uploadShot(info, inp.files[0]); if (r.ok) { info.hasShot = true; setMsg('Screenshot attached.', 'ok'); showResult(info, shotLink(r)); } else setMsg(r.errors.join(' '), 'err'); }
+      catch (e) { setMsg(e.message, 'err'); }
+    };
+    inp.click();
+  }
+
+  async function save(confirmed) {
+    if (state.busy) return;
+    if (!state.tab || !state.session) { setMsg('Pick a test tab first.', 'err'); return; }
+    if (!state.session.pairOk) { setMsg('The pair is not on the Settings tab. Pick it in cell B1 first.', 'err'); return; }
+    setBusy(true); setMsg('Checking…'); hideConfirm();
+    try {
+      const check = await run('validateTrade', state.mode, state.tab, getForm());
+      if (!check.ok) { setMsg(check.error, 'err'); return; }
+      applyReview(check.review, false);
+      if (check.review.blocking.length) { setMsg('Not saved yet: ' + check.review.blocking.join(' '), 'err'); return; }
+      if (!confirmed && check.review.blanks.length) {
+        setMsg(check.review.blanks.length + ' box' + (check.review.blanks.length > 1 ? 'es are' : ' is') + ' still empty (' + check.review.blanks.join(', ') + '). Save anyway?');
+        $('#confirmBar').classList.remove('hidden'); return;
+      }
+      setMsg('Saving…');
+      const res = await run('saveTrade', { mode: state.mode, tab: state.tab, submissionId: state.submissionId, fields: getForm(), transcript: state.transcript || $('#transcript').value.trim() });
+      if (!res.ok) { setMsg((res.errors || ['Not saved.']).join(' '), 'err'); return; }
+      const info = { mode: res.mode, tab: res.tab || state.tab, tradeNumber: res.tradeNumber, liveId: res.liveId, status: res.status, flags: res.flags, hasShot: false };
+      let extra = null;
+      if (state.shot) {
+        setMsg('Saved. Uploading the screenshot…');
+        try {
+          const up = await uploadShot(info, state.shot);
+          if (up.ok) { info.hasShot = true; extra = shotLink(up); }
+          else extra = shotProblem(info, 'The trade is saved, but the screenshot was not: ' + up.errors.join(' '));
+        } catch (e) { extra = shotProblem(info, 'The trade is saved, but the screenshot failed: ' + e.message); }
+      } else extra = node('div', { class: 'info' }, 'No screenshot yet. ', attachButton(info));
+      state.lastSaved = info; showResult(info, extra); window.scrollTo(0, 0);
+      setMsg('Saved.', 'ok');
+      clearForm(); state.submissionId = uuid(); await loadSession();
+    } catch (e) { setMsg(e.message, 'err'); }
+    finally { setBusy(false); }
+  }
+  $('#saveBtn').addEventListener('click', () => save(false));
+  $('#saveAnywayBtn').addEventListener('click', () => save(true));
+  $('#goBackBtn').addEventListener('click', () => { hideConfirm(); setMsg(''); });
+
+  // ---------------------------------------------------------------- ideas
+  $('#ideaSave').addEventListener('click', async () => {
+    const text = $('#ideaText').value.trim();
+    if (!text) { $('#ideaMsg').textContent = 'Write or dictate the idea first.'; return; }
+    $('#ideaSave').disabled = true; $('#ideaMsg').textContent = 'Saving…';
+    try {
+      const res = await run('saveIdea', { submissionId: state.ideaSubmission, text: text, raw: state.ideaRaw || text, tab: $('#ideaTab').value, linkedTrade: $('#ideaLinked').value });
+      if (res.ok) { $('#ideaMsg').textContent = 'Saved as ' + res.id + '.'; $('#ideaText').value = ''; $('#ideaLinked').value = ''; state.ideaRaw = ''; state.ideaSubmission = uuid(); }
+      else $('#ideaMsg').textContent = (res.errors || ['Not saved.']).join(' ');
+    } catch (e) { $('#ideaMsg').textContent = e.message; }
+    finally { $('#ideaSave').disabled = false; }
+  });
+  $('#ideaText').addEventListener('input', () => { if (!$('#ideaText').value.trim()) state.ideaRaw = ''; });
+
+  // ---------------------------------------------------------------- modes and tab changes
+  function setMode(mode) {
+    state.mode = mode;
+    $$('#modeSeg button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    const idea = mode === 'idea';
+    $('#tradePanel').classList.toggle('hidden', idea); $('#ideaPanel').classList.toggle('hidden', !idea); $('#saveBar').classList.toggle('hidden', idea);
+    if (idea) return;
+    $('#tabHeading').textContent = mode === 'live' ? 'Strategy' : 'Test tab';
+    $('#tabLabel').textContent = mode === 'live' ? 'Pick the backtest tab this trade belongs to (its pair, strategy and AI conditions are used)' : 'Which test are you recording?';
+    $('#saveBtn').textContent = mode === 'live' ? 'Save live trade' : 'Save trade';
+    $('#dictBtn').querySelector('.lbl').textContent = mode === 'live' ? 'Dictate live trade' : 'Dictate trade';
+    $('#resultCard').classList.add('hidden');
+    state.submissionId = uuid(); buildForm(); clearForm(); setMsg(''); loadSession();
+  }
+  $$('#modeSeg button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+  $('#tabSel').addEventListener('change', () => { state.tab = $('#tabSel').value; clearForm(); setMsg(''); $('#resultCard').classList.add('hidden'); loadSession(); });
+  $('#refreshBtn').addEventListener('click', async () => { try { const r = await run('getInitData'); if (r.ok) { state.tabs = r.tabs; fillTabSelects(); } } catch (e) {} loadSession(); });
+
+  if (!SR) { $('#micStatus').textContent = 'Voice dictation is not available here. Type the trade below.'; }
+  init();
+
+  // exposed for the automated test only
+  window.__recorder = { state, setMode, readTranscript, save, getForm };
+})();
+</script>
+</body>
+</html>
